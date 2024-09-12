@@ -24,13 +24,26 @@ class Place():
         
     @property
     def tokens(self):
+        """
+        Returns:
+            int: The sum of number of tokens in the place
+        """
         return sum(self.marking.values())
 
     def initialize(self):
+        """
+        Set the marking to initial marking
+        """
         for key in self.initial_marking.keys():
             self.marking[key] = self.initial_marking[key]
             
     def set_mark(self, new_mark):
+        """
+        Set the marking to new_mark
+
+        Args:
+            new_mark (dict): kvp of mark kind: number
+        """
         self.marking = dict()
         for key in new_mark.keys():
             self.marking[key] = new_mark[key]
@@ -51,7 +64,16 @@ class Transition():
         self.priority = priority
         
     # The action of taking a marking from a source place occupies a marking resource
-    def tick(self, dt):
+    def tick(self, dt=0.01):
+        """
+        Tick the time of the transition.
+        Reduce the rest time of the transition by dt.
+        Args:
+            dt (float): delta time
+
+        Returns:
+            bool: if the transition is finished.
+        """
         if self.work_status == 'firing':
             self.time -= dt
             if self.time <= 0.0:

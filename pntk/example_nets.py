@@ -1,5 +1,5 @@
-from elements import *
-from petri_net import *
+from .elements import *
+from .petri_net import *
 
 class PlainNet(ColoredPetriNet):
     def __init__(self, name):
@@ -22,3 +22,8 @@ class TestNet(ColoredPetriNet):
         self.add_arc(self.t1, self.p2)
         self.add_arc(self.p2, self.t2)
         self.add_arc(self.t2, self.p3)
+        
+class EmptyNet(ColoredPetriNet):
+    def __init__(self, name):
+        super().__init__(name)
+        
