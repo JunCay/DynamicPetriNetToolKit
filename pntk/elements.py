@@ -19,6 +19,8 @@ class Place():
         self.out_arcs = dict()
         self.marking = initial_marking
         self.initial_marking = dict()
+        self.processing_time = 0.0
+        self.time = 0.0
         for key in initial_marking.keys():
             self.initial_marking[key] = initial_marking[key]
         
@@ -47,6 +49,29 @@ class Place():
         self.marking = dict()
         for key in new_mark.keys():
             self.marking[key] = new_mark[key]
+    
+    def add_mark(self, new_mark):
+        """
+        Add new_mark to the marking
+
+        Args:
+            new_mark (dict): kvp of mark kind: number
+        """
+        for key in new_mark.keys():
+            if key in self.marking.keys():
+                self.marking[key] += new_mark[key]
+            else:
+                self.marking[key] = new_mark[key]
+                
+    def add_one_mark(self, mark_kind):
+        if mark_kind in self.marking.keys():
+            self.marking[mark_kind] += 1
+        else:
+            self.marking[mark_kind] = 1
+    
+    def set_processing_time(self, processing_time):
+        self.processing_time = processing_time
+
     
 class Transition():
     def __init__(self, name, condition=None, time=0.0, priority=0):
