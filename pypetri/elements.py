@@ -10,7 +10,7 @@ class Layout():
         
 
 class Place():
-    def __init__(self, name, initial_marking, port_type=''):
+    def __init__(self, name, initial_marking, processing_time=0.0, branch='resource'):
         self.id = uuid.uuid4()
         self.name = name
         self.ins = dict()
@@ -19,11 +19,13 @@ class Place():
         self.out_arcs = dict()
         self.marking = initial_marking
         self.initial_marking = dict()
-        self.processing_time = 0.0
+        self.target_marking = dict()
+        self.processing_time = processing_time
         self.time = 0.0
-        for key in initial_marking.keys():
-            self.initial_marking[key] = initial_marking[key]
-        
+        self.branch = branch
+        self.set_initial_marking(initial_marking)
+        self.set_target_marking(initial_marking)
+
     @property
     def tokens(self):
         """
@@ -31,6 +33,14 @@ class Place():
             int: The sum of number of tokens in the place
         """
         return sum(self.marking.values())
+    
+    @property
+    def target_tokens(self):
+        """
+        Returns:
+            int: The sum of number of tokens in the place
+        """
+        return sum(self.target_marking.values())
 
     def initialize(self):
         """
@@ -50,6 +60,28 @@ class Place():
         for key in new_mark.keys():
             self.marking[key] = new_mark[key]
     
+    
+    def set_initial_marking(self, new_mark):
+        """
+        Set the initial marking to new_mark
+        Should not be called after the initial marking is set
+
+        Args:
+            new_mark (Dict): kvp of mark kind: number
+        """
+        for key in new_mark.keys():
+            self.initial_marking[key] = new_mark[key]
+            
+    def set_target_marking(self, new_mark):
+        """
+        Set the target marking to new_mark
+
+        Args:
+            new_mark (dict): kvp of mark kind: number
+        """
+        for key in new_mark.keys():
+            self.target_marking[key] = new_mark[key]
+            
     def add_mark(self, new_mark):
         """
         Add new_mark to the marking
@@ -69,19 +101,30 @@ class Place():
         else:
             self.marking[mark_kind] = 1
     
-    def set_processing_time(self, processing_time):
+    def set_on_process(self, processing_time):
         self.processing_time = processing_time
 
+    def tick(self, dt):
+        """
+        Tick the time of the place.
+        Args:
+            dt (float): delta time
+        """
+        self.time -= dt
+        if self.time <= 0.0:
+            self.time = 0.0
+            return True
+        else:
+            return False
     
 class Transition():
-    def __init__(self, name, condition=None, time=0.0, priority=0):
+    def __init__(self, name, time=0.0, priority=0):
         self.id = uuid.uuid4()
         self.name = name
         self.ins = dict()
         self.outs = dict()
         self.in_arcs = dict()
         self.out_arcs = dict()
-        self.condition = condition
         self.status = 'unready'
         self.work_status = 'unfiring'
         self.consumption = time
@@ -108,6 +151,14 @@ class Transition():
                 return False
         else:
             return False
+        
+    def set_status(self, status):
+        self.status = status
+        
+    def set_on_fire(self):
+        self.work_status = 'firing'
+        self.status = 'unready'
+        self.time = self.consumption
         
     
 class Arc():

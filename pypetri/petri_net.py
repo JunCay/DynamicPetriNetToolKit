@@ -15,8 +15,10 @@ class ColoredPetriNet():
         self.name_node = dict()
         self.id_name = dict()
         self.debug = False
+        self.dt = 0.01
         self.marking_types = list()
-        self.update_ready_transition()
+        self.reward_dict = {'fire': 2, 'unready_fire': -1, 'duplicate_fire': -4, 'idle': -0.1}
+
         
     def __str__(self):
         res = []
@@ -24,6 +26,8 @@ class ColoredPetriNet():
             res.append({p.name: p.marking})
         return str(res)
         
+    def set_dt(self, dt):
+        self.dt = dt
         
     def add_node(self, node):
         """
@@ -60,7 +64,7 @@ class ColoredPetriNet():
             None 
         """
         arc = Arc(node1, node2)
-        self.arcs[arc.id] = arc
+        self.arcs[arc.name] = arc
         node1.outs[node2.id] = node2
         node1.out_arcs[arc.id] = arc
         node2.ins[node1.id] = node1
@@ -82,20 +86,31 @@ class ColoredPetriNet():
             for row in reader:
                 row = {k.strip(): v.strip() for k, v in row.items()}
                 command = row['command']
-                args = ast.literal_eval(row['args'])
-                
+                args_list = ast.literal_eval(row['args'])
+                args = []
+                for arg in args_list:
+                    try:
+                        a = ast.literal_eval(arg)
+                        args.append(a)
+                    except:
+                        args.append(arg)
                 if command == 'MADP':
                     # Add Place Node
-                    self.add_node(Place(args[0], ast.literal_eval(args[1])))
+                    # self.add_node(Place(args[0], ast.literal_eval(args[1]))) 
+                    self.add_node(Place(*args))
                 elif command == 'MADT':
                     # Add Transition Node
-                    self.add_node(Transition(args[0], None, ast.literal_eval(args[1])))
+                    # self.add_node(Transition(args[0], None, ast.literal_eval(args[1])))
+                    self.add_node(Transition(*args))  
                 elif command == 'MADA':
                     # Add Arc
                     self.add_arc(self.name_node[args[1]], self.name_node[args[2]])
+                elif command == 'MAST':
+                    # Set target marking
+                    self.name_node[args[0]].set_target_marking(args[1])
                     
-                    
-    
+        self.set_net_ready()
+        
     @property
     def tokens(self):
         """
@@ -143,9 +158,11 @@ class ColoredPetriNet():
         """
         for arc in transition.in_arcs.values():
             if not self.arc_ready(arc):
-                transition.status = 'unready'
+                # transition.status = 'unready'
+                transition.set_status('unready')
                 return False
-        transition.status = 'ready'
+        # transition.status = 'ready'
+        transition.set_status('ready')
         return True
     
     def arc_ready(self, arc:Arc):
@@ -160,6 +177,8 @@ class ColoredPetriNet():
             Boolean: if the arc is ready to fire.
         """
         if arc.direction == 'PtoT':
+            if arc.node_in.time > 0:
+                return False
             for k in arc.annotation.keys():
                 if arc.node_in.marking[k] - arc.annotation[k] >= 0:
                     return True
@@ -224,9 +243,20 @@ class ColoredPetriNet():
         for arc in self.transitions[transition.id].in_arcs.values():
             for k in arc.node_in.marking.keys():
                 arc.node_in.marking[k] -= arc.annotation[k]
-        transition.work_status = 'firing'
-        transition.time = transition.consumption
+        # transition.work_status = 'firing'
+        # transition.time = transition.consumption
+        transition.set_on_fire()
         return True
+    
+    def chech_alive(self):
+        self.update_ready_transition()
+        for t in self.transitions.values():
+            if t.status == 'ready':
+                return True
+            else:
+                if t.work_status == 'firing':
+                    return True
+        return False
     
     def tick(self, dt):
         """
@@ -283,6 +313,22 @@ class ColoredPetriNet():
                 mat_str += str(res[i][j]) + '\t'
             mat_str += '\n'
         print(mat_str)
+        
+    def set_net_ready(self):
+        self.adj_matrix = np.zeros((len(self.places), len(self.transitions)))
+        for i, place in enumerate(self.places.values()):
+            for j, transition in enumerate(self.transitions.values()):
+                if place.name + '->' + transition.name in self.arcs.keys():
+                    self.adj_matrix[i][j] = -1
+                if transition.name + '->' + place.name in self.arcs.keys():
+                    self.adj_matrix[i][j] = 1
+                    
+        self.get_action_space()
+        self.update_ready_transition()
+    
+    def get_adj_matrix(self):
+        self.set_net_ready()
+        return self.adj_matrix
     # RL part
     def reset(self):
         """
@@ -290,8 +336,15 @@ class ColoredPetriNet():
         """
         self.reset_net()
         self.update_ready_transition()
-        
-    def get_place_state(self):
+    
+    def get_action_space(self):
+        self.action_list = []
+        for transition in self.transitions.values():
+            if transition.consumption > 0.0:
+                self.action_list.append(transition)
+        return len(self.transitions)+1
+    
+    def get_place_colored_state(self):
         """
         Tobe overrided to customize the state of the petri net.
 
@@ -300,32 +353,89 @@ class ColoredPetriNet():
         """
         marking_types = self.get_marking_types()
         place_state = np.zeros((len(self.places), len(marking_types)))
+        target_state = np.zeros((len(self.places), len(marking_types)))
+        place_time_state = np.zeros((len(self.places), len(marking_types)))
         for i, place in enumerate(self.places.values()):
             for mt in marking_types:
                 if mt in place.marking.keys():
                     place_state[i, marking_types.index(mt)] = place.marking[mt]
+                    target_state[i, marking_types.index(mt)] = place.target_marking[mt]
+        # res_state = np.stack((place_state, target_state), axis=1)
+        res_state = np.concatenate((place_state, target_state), axis=1)
+        res_state = np.concatenate((res_state, place_time_state), axis=1)
+        return res_state
+    
+    def get_place_neural_state(self):
+        marking_types = self.get_marking_types()
+        place_state = np.zeros((len(self.places), 3))
+        for i, place in enumerate(self.places.values()):
+            place_state[i, 0] = place.tokens
+            place_state[i, 1] = place.target_tokens
+            if place.branch == 'main':
+                place_state[i, 2] = 1.0
         return place_state
     
-    def get_transition_state(self):
+    def get_transition_neural_state(self):
         """
         Tobe overrided to customize the state of the petri net.
 
         Returns:
             _type_: _description_
         """
-        trans_state = np.zeros(len(self.transitions))
+        trans_state = np.zeros((len(self.transitions), 3))
         for i, transition in enumerate(self.transitions.values()):
-            if transition.work_status == 'firing':
-                if transition.consumption == 0:
-                    trans_state[i] = 0.0
-                else:
-                    trans_state[i] = (transition.consumption - transition.time) / transition.consumption
+            if transition.status == 'ready':
+                trans_state[i, 0] = 1.0
             else:
-                trans_state[i] = 0.0
+                trans_state[i, 0] = 0.0
+            if transition.work_status == 'firing':
+                trans_state[i, 1] = 1.0
+                trans_state[i, 2] = (transition.consumption - transition.time) / transition.consumption
+
         return trans_state
     
     def get_state(self):
-        pass
+        place_state = self.get_place_neural_state()
+        trans_state = self.get_transition_neural_state()
+        return [place_state, trans_state]
     
-    def step(self, action:Transition):
-        pass
+    def get_state_space(self):
+        return self.get_state()[0].shape, self.get_state()[1].shape
+    
+    def step(self, action):
+        reward_dict = {}
+        p_state = self.get_state()[0]
+        p_dist = np.sum(np.abs(p_state[:, 1] - p_state[:, 0]) * p_state[:, 2])
+        
+        if isinstance(action, int):
+            if action == 0:
+                trans = None
+            else:
+                trans = self.action_list[action-1]
+            
+            if trans == None:
+                reward_dict['idle'] = self.reward_dict['idle']
+                
+            else:
+                if not self.transition_ready_check(trans):
+                    reward_dict['unready_fire'] = self.reward_dict['unready_fire']
+                else:
+                    if self.on_fire_transition(trans):
+                        reward_dict['fire'] = self.reward_dict['fire']
+                    else:
+                        reward_dict['duplicate_fire'] += self.reward_dict['duplicate_fire']
+            
+            
+            self.tick(self.dt)
+            next_state = self.get_state()
+            p_state_ = next_state[0]
+            p_dist_ = np.sum(np.abs(p_state_[:, 1] - p_state_[:, 0]) * p_state_[:, 2])
+            reward_dict['progress'] = p_dist - p_dist_
+            reward = sum(reward_dict.values())
+            done = self.chech_alive()
+            print(reward_dict)
+            
+        return next_state, reward, done
+        
+        
+        
