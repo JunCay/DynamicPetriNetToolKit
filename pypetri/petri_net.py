@@ -16,6 +16,7 @@ class ColoredPetriNet():
         self.id_name = dict()
         self.debug = False
         self.dt = 0.01
+        self.train_time = 0.0
         self.marking_types = list()
         self.reward_dict = {'fire': 2, 'unready_fire': -1, 'duplicate_fire': -4, 'idle': -0.1}
 
@@ -268,6 +269,7 @@ class ColoredPetriNet():
         Returns:
             List[str]: The names of the finished transitions
         """
+        self.train_time += dt
         changed = []
         for transition in self.transitions.values():
             f = transition.tick(dt)
@@ -287,6 +289,12 @@ class ColoredPetriNet():
         for place in self.places.values():
             place.initialize()
         
+    def reset_transitions(self):
+        for transition in self.transitions.values():
+            transition.status = 'unready'
+            transition.work_status = 'unfiring'
+            transition.time = 0.0
+    
     def get_marking_types(self):
         for p in self.places.values():
             for t in p.marking.keys():
@@ -315,7 +323,7 @@ class ColoredPetriNet():
         print(mat_str)
         
     def set_net_ready(self):
-        self.adj_matrix = np.zeros((len(self.places), len(self.transitions)))
+        self.adj_matrix = np.zeros((len(self.places), len(self.transitions)+1))
         for i, place in enumerate(self.places.values()):
             for j, transition in enumerate(self.transitions.values()):
                 if place.name + '->' + transition.name in self.arcs.keys():
@@ -334,8 +342,12 @@ class ColoredPetriNet():
         """
         Reset the net to initial state
         """
+        self.train_time = 0.0
         self.reset_net()
+        self.reset_transitions()
         self.update_ready_transition()
+        
+        return self.get_state()
     
     def get_action_space(self):
         self.action_list = []
@@ -382,7 +394,7 @@ class ColoredPetriNet():
         Returns:
             _type_: _description_
         """
-        trans_state = np.zeros((len(self.transitions), 3))
+        trans_state = np.zeros((len(self.transitions)+1, 3))
         for i, transition in enumerate(self.transitions.values()):
             if transition.status == 'ready':
                 trans_state[i, 0] = 1.0
@@ -391,13 +403,15 @@ class ColoredPetriNet():
             if transition.work_status == 'firing':
                 trans_state[i, 1] = 1.0
                 trans_state[i, 2] = (transition.consumption - transition.time) / transition.consumption
-
+        trans_state[-1] = [1.0, 0.0, 0.0]       # add idle transition
         return trans_state
     
     def get_state(self):
         place_state = self.get_place_neural_state()
         trans_state = self.get_transition_neural_state()
+        # state = np.concatenate((place_state, trans_state), axis=0)
         return [place_state, trans_state]
+        # return state
     
     def get_state_space(self):
         return self.get_state()[0].shape, self.get_state()[1].shape
@@ -423,7 +437,7 @@ class ColoredPetriNet():
                     if self.on_fire_transition(trans):
                         reward_dict['fire'] = self.reward_dict['fire']
                     else:
-                        reward_dict['duplicate_fire'] += self.reward_dict['duplicate_fire']
+                        reward_dict['duplicate_fire'] = self.reward_dict['duplicate_fire']
             
             
             self.tick(self.dt)
@@ -432,8 +446,8 @@ class ColoredPetriNet():
             p_dist_ = np.sum(np.abs(p_state_[:, 1] - p_state_[:, 0]) * p_state_[:, 2])
             reward_dict['progress'] = p_dist - p_dist_
             reward = sum(reward_dict.values())
-            done = self.chech_alive()
-            print(reward_dict)
+            done = not self.chech_alive()
+            # print(reward_dict)
             
         return next_state, reward, done
         

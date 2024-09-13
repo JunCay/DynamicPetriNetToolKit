@@ -17,8 +17,8 @@ class Place():
         self.outs = dict()
         self.in_arcs = dict()
         self.out_arcs = dict()
-        self.marking = initial_marking
-        self.initial_marking = dict()
+        self.marking = initial_marking.copy()
+        self.initial_marking = initial_marking.copy()
         self.target_marking = dict()
         self.processing_time = processing_time
         self.time = 0.0
