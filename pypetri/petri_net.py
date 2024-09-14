@@ -18,7 +18,7 @@ class ColoredPetriNet():
         self.dt = 0.01
         self.train_time = 0.0
         self.marking_types = list()
-        self.reward_dict = {'fire': 2, 'unready_fire': -1, 'duplicate_fire': -4, 'idle': -0.1}
+        self.reward_dict = {'progress': 5, 'fire': 2, 'unready_fire': -1, 'duplicate_fire': -4, 'idle': -self.dt}
 
         
     def __str__(self):
@@ -444,7 +444,7 @@ class ColoredPetriNet():
             next_state = self.get_state()
             p_state_ = next_state[0]
             p_dist_ = np.sum(np.abs(p_state_[:, 1] - p_state_[:, 0]) * p_state_[:, 2])
-            reward_dict['progress'] = p_dist - p_dist_
+            reward_dict['progress'] = (p_dist - p_dist_) * self.reward_dict['progress']
             reward = sum(reward_dict.values())
             done = not self.chech_alive()
             # print(reward_dict)
