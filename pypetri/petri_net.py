@@ -18,7 +18,7 @@ class ColoredPetriNet():
         self.dt = 0.01
         self.train_time = 0.0
         self.marking_types = list()
-        self.reward_dict = {'progress': 5, 'fire': 2, 'unready_fire': -1, 'duplicate_fire': -4, 'idle': -self.dt}
+        self.reward_dict = {'progress': 5, 'fire': 2, 'unready_fire': -5, 'duplicate_fire': -20, 'idle': -self.dt}
 
         
     def __str__(self):
@@ -337,6 +337,7 @@ class ColoredPetriNet():
     def get_adj_matrix(self):
         self.set_net_ready()
         return self.adj_matrix
+    
     # RL part
     def reset(self):
         """
@@ -348,6 +349,9 @@ class ColoredPetriNet():
         self.update_ready_transition()
         
         return self.get_state()
+
+    def set_reward(self, type, reward):
+        self.reward_dict[type] = reward
     
     def get_action_space(self):
         self.action_list = []
@@ -416,7 +420,7 @@ class ColoredPetriNet():
     def get_state_space(self):
         return self.get_state()[0].shape, self.get_state()[1].shape
     
-    def step(self, action):
+    def step(self, action, debug=False):
         reward_dict = {}
         p_state = self.get_state()[0]
         p_dist = np.sum(np.abs(p_state[:, 1] - p_state[:, 0]) * p_state[:, 2])
@@ -449,7 +453,10 @@ class ColoredPetriNet():
             done = not self.chech_alive()
             # print(reward_dict)
             
-        return next_state, reward, done
+        if debug:
+            return next_state, reward, done, reward_dict
+        else:
+            return next_state, reward, done
         
         
         
