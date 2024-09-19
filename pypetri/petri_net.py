@@ -445,6 +445,7 @@ class ColoredPetriNet():
             
             
             self.tick(self.dt)
+            self.update_ready_transition()
             next_state = self.get_state()
             p_state_ = next_state[0]
             p_dist_ = np.sum(np.abs(p_state_[:, 1] - p_state_[:, 0]) * p_state_[:, 2])
@@ -452,6 +453,7 @@ class ColoredPetriNet():
             reward = sum(reward_dict.values())
             done = not self.chech_alive()
             # print(reward_dict)
+            
             
         if debug:
             return next_state, reward, done, reward_dict
