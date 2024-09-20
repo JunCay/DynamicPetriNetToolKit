@@ -18,7 +18,7 @@ class ColoredPetriNet():
         self.dt = 0.01
         self.train_time = 0.0
         self.marking_types = list()
-        self.reward_dict = {'progress': 5, 'fire': 2, 'unready_fire': -5, 'on_fire_fire': -10, 'duplicate_fire': -20, 'idle': -self.dt}
+        self.reward_dict = {'progress': 100, 'fire': 2, 'unready_fire': -5, 'on_fire_fire': -10, 'duplicate_fire': -100, 'idle': -self.dt}
         self.last_fire = None
         
     def __str__(self):
@@ -29,6 +29,7 @@ class ColoredPetriNet():
         
     def set_dt(self, dt):
         self.dt = dt
+        self.reward_dict['idle'] = -self.dt
         
     def add_node(self, node):
         """
@@ -387,7 +388,7 @@ class ColoredPetriNet():
         for i, place in enumerate(self.places.values()):
             place_state[i, 0] = place.tokens
             place_state[i, 1] = place.target_tokens
-            if place.branch == 'main':
+            if place.branch == 'resource':
                 place_state[i, 2] = 1.0
         return place_state
     
@@ -439,13 +440,14 @@ class ColoredPetriNet():
                     if trans == self.last_fire:
                         reward_dict['duplicate_fire'] = self.reward_dict['duplicate_fire']
                     reward_dict['unready_fire'] = self.reward_dict['unready_fire']
+                    
                 else:
                     if self.on_fire_transition(trans):
                         reward_dict['fire'] = self.reward_dict['fire']
-                        self.last_fire = trans
                     else:
                         reward_dict['on_fire_fire'] = self.reward_dict['on_fire_fire']
-            
+                self.last_fire = trans
+
             
             self.tick(self.dt)
             self.update_ready_transition()
