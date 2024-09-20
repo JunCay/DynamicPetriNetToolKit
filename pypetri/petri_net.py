@@ -18,7 +18,7 @@ class ColoredPetriNet():
         self.dt = 0.01
         self.train_time = 0.0
         self.marking_types = list()
-        self.reward_dict = {'progress': 100, 'fire': 2, 'unready_fire': -5, 'on_fire_fire': -10, 'duplicate_fire': -100, 'idle': -self.dt}
+        self.reward_dict = {'progress': 10, 'fire': 2, 'unready_fire': -10, 'on_fire_fire': -20, 'duplicate_fire': -20, 'idle': -self.dt}
         self.last_fire = None
         
     def __str__(self):
@@ -427,10 +427,10 @@ class ColoredPetriNet():
         p_dist = np.sum(np.abs(p_state[:, 1] - p_state[:, 0]) * p_state[:, 2])
         
         if isinstance(action, int):
-            if action == 0:
+            if action == len(self.transitions):
                 trans = None
             else:
-                trans = self.action_list[action-1]
+                trans = self.action_list[action]
             
             if trans == None:
                 reward_dict['idle'] = self.reward_dict['idle']
