@@ -163,6 +163,12 @@ class ColoredPetriNet():
                 # transition.status = 'unready'
                 transition.set_status('unready')
                 return False
+            
+        for arc in transition.out_arcs.values():
+            if not self.arc_ready(arc):
+                # transition.status = 'unready'
+                transition.set_status('unready')
+                return False
         # transition.status = 'ready'
         transition.set_status('ready')
         return True
@@ -185,8 +191,10 @@ class ColoredPetriNet():
                 if arc.node_in.marking[k] - arc.annotation[k] >= 0:
                     return True
             return False
-        else:
-            return False
+        elif arc.direction == 'TtoP':
+            if arc.node_out.tokens > 0:
+                return False
+            return True
         
     def fire_transition(self, transition:Transition):
         """
@@ -449,7 +457,6 @@ class ColoredPetriNet():
                 self.last_fire = trans
 
             
-            self.tick(self.dt)
             self.update_ready_transition()
             next_state = self.get_state()
             p_state_ = next_state[0]
@@ -457,6 +464,9 @@ class ColoredPetriNet():
             reward_dict['progress'] = (p_dist - p_dist_) * self.reward_dict['progress']
             reward = sum(reward_dict.values())
             done = not self.chech_alive()
+            
+            self.tick(self.dt)
+            
             # print(reward_dict)
             
             

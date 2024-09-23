@@ -10,7 +10,7 @@ class Layout():
         
 
 class Place():
-    def __init__(self, name, initial_marking, processing_time=0.0, branch='resource'):
+    def __init__(self, name, initial_marking, processing_time=0.0, branch='activity'):
         self.id = uuid.uuid4()
         self.name = name
         self.ins = dict()
