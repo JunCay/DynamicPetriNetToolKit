@@ -455,6 +455,7 @@ class ColoredPetriNet():
                 else:
                     if self.on_fire_transition(trans):
                         reward_dict['fire'] = self.reward_dict['fire']
+                        reward_dict['trans_bonus'] = trans.bonus
                     else:
                         reward_dict['on_fire_fire'] = self.reward_dict['on_fire_fire']
                 self.last_fire = trans

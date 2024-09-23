@@ -118,7 +118,7 @@ class Place():
             return False
     
 class Transition():
-    def __init__(self, name, time=0.0, priority=0):
+    def __init__(self, name, time=0.0, bonus=0):
         self.id = uuid.uuid4()
         self.name = name
         self.ins = dict()
@@ -129,7 +129,7 @@ class Transition():
         self.work_status = 'unfiring'
         self.consumption = time
         self.time = 0.0           # rest_time
-        self.priority = priority
+        self.bonus = bonus
         
     # The action of taking a marking from a source place occupies a marking resource
     def tick(self, dt=0.01):
