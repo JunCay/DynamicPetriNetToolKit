@@ -192,9 +192,12 @@ class ColoredPetriNet():
                     return True
             return False
         elif arc.direction == 'TtoP':
-            if arc.node_out.tokens > 0:
-                return False
-            return True
+            if arc.node_out.branch == 'resource':
+                if arc.node_out.tokens > 0:
+                    return False
+                return True
+            else:
+                return True
         
     def fire_transition(self, transition:Transition):
         """
