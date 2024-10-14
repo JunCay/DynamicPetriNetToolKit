@@ -10,7 +10,7 @@ class Layout():
         
 
 class Place():
-    def __init__(self, name, initial_marking, processing_time=0.0, branch='activity'):
+    def __init__(self, name, initial_marking, processing_time=0.0, visibility='unvisible', place_type='activity'):
         self.id = uuid.uuid4()
         self.name = name
         self.ins = dict()
@@ -22,7 +22,8 @@ class Place():
         self.target_marking = dict()
         self.processing_time = processing_time
         self.time = 0.0
-        self.branch = branch
+        self.visibility = visibility
+        self.place_type = place_type
         self.set_initial_marking(initial_marking)
         self.set_target_marking(initial_marking)
 
@@ -118,7 +119,7 @@ class Place():
             return False
     
 class Transition():
-    def __init__(self, name, time=0.0, bonus=0):
+    def __init__(self, name, time=0.0, target_gesture=None, bonus=0):
         self.id = uuid.uuid4()
         self.name = name
         self.ins = dict()
@@ -127,7 +128,10 @@ class Transition():
         self.out_arcs = dict()
         self.status = 'unready'
         self.work_status = 'unfiring'
+        self.init_time = 3.0
+        self.target_gesture = target_gesture
         self.consumption = time
+        self.this_consumption = self.consumption
         self.time = 0.0           # rest_time
         self.bonus = bonus
         
@@ -155,12 +159,16 @@ class Transition():
     def set_status(self, status):
         self.status = status
         
-    def set_on_fire(self):
+    def set_on_fire(self, current_gesture=None):
         self.work_status = 'firing'
         self.status = 'unready'
         self.time = self.consumption
         
-    
+        if current_gesture is not None:
+            if current_gesture != self.target_gesture:
+                self.time += self.init_time
+        self.this_consumption = self.time
+        
 class Arc():
     def __init__(self, node1, node2, annotation={'0':1}):
         self.id = uuid.uuid4()

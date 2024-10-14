@@ -17,8 +17,9 @@ class ColoredPetriNet():
         self.debug = False
         self.dt = 0.01
         self.train_time = 0.0
+        self.current_gesture = '0000'
         self.marking_types = list()
-        self.reward_dict = {'progress': 10, 'fire': 2, 'unready_fire': -10, 'on_fire_fire': -20, 'duplicate_fire': -20, 'idle': -self.dt}
+        self.reward_dict = {'progress': 10, 'fire': 2, 'unready_fire': -10, 'on_fire_fire': -20, 'duplicate_fire': -20, 'idle': -self.dt, 'fire_time_penalty': -0.1}
         self.last_fire = None
         
     def __str__(self):
@@ -192,13 +193,13 @@ class ColoredPetriNet():
                     return True
             return False
         elif arc.direction == 'TtoP':
-            if arc.node_out.branch == 'resource':
+            if arc.node_out.place_type == 'resource':
                 if arc.node_out.tokens > 0:
                     return False
                 return True
             else:
                 return True
-        
+    
     def fire_transition(self, transition:Transition):
         """
         Fire the input transition. Then update the ready transition list.
@@ -246,7 +247,7 @@ class ColoredPetriNet():
             return False
         if not self.transition_ready_check(transition):
             if self.debug:
-                print(f"Transition not found in current petri net")
+                print(f"Transition not ready")
             return False
         if transition.work_status == 'firing':
             if self.debug:
@@ -258,7 +259,66 @@ class ColoredPetriNet():
                 arc.node_in.marking[k] -= arc.annotation[k]
         # transition.work_status = 'firing'
         # transition.time = transition.consumption
+        transition.set_on_fire(self.current_gesture)
+        return True
+    
+    def on_fire_transition_restrict(self, transition:Transition):
+        """
+        Set the transition to firing status. Except influnce visible.
+
+        Args:
+            transition (Transition): The transition to be started.
+
+        Returns:
+            Boolean: if the transition is successfully started.
+        """
+        # print(f"on firing transition: {transition.name}")
+        if transition not in self.transitions.values():
+            if self.debug:
+                print(f"Transition not found in current petri net")
+            return False
+        if not self.transition_ready_check(transition):
+            if self.debug:
+                print(f"Transition not ready")
+            return False
+        if transition.work_status == 'firing':
+            if self.debug:
+                print(f"Transition is already firing")
+            return False
+        
+        for arc in self.transitions[transition.id].in_arcs.values():
+            if arc.node_in.visibility == 'visible':
+                continue
+            for k in arc.node_in.marking.keys():
+                arc.node_in.marking[k] -= arc.annotation[k]
         transition.set_on_fire()
+        return True
+    
+    def off_fire_transition_restrict(self, transition:Transition, debug):
+        """
+        Set the transition to firing status. Except influnce visible.
+
+        Args:
+            transition (Transition): The transition to be started.
+
+        Returns:
+            Boolean: if the transition is successfully started.
+        """
+        # print(f"set off firing transition: {transition.name}")
+        if transition not in self.transitions.values():
+            if debug:
+                print(f"Transition not found in current petri net")
+            return False
+
+        # print("out arcs: ", self.transitions[transition.id].out_arcs)
+        for arc in self.transitions[transition.id].out_arcs.values():
+            print(f"{arc.node_out.name} : {arc.node_out.visibility}")
+            if arc.node_out.visibility == 'visible':
+                continue
+            for k in arc.node_out.marking.keys():
+                arc.node_out.marking[k] += arc.annotation[k]
+        transition.work_status = 'unfiring'
+        self.update_ready_transition()
         return True
     
     def chech_alive(self):
@@ -291,9 +351,23 @@ class ColoredPetriNet():
                     for k in arc.node_out.marking.keys():
                         arc.node_out.marking[k] += arc.annotation[k]
                 transition.work_status = 'unfiring'
+                # print(transition.name, transition.target_gesture)
+                self.update_gesture(transition.target_gesture)
                 self.update_ready_transition()
         return changed
-
+    
+    def update_gesture(self, gesture):
+        new_gesture = []
+        gesture = str(gesture)
+        if len(gesture) != 4:
+            raise Exception("The gesture should be 4 characters.")
+        for i in range(len(gesture)):
+            if gesture[i] == '-':
+                new_gesture.append(self.current_gesture[i])
+            else:
+                new_gesture.append(gesture[i])
+        self.current_gesture = ''.join(new_gesture)
+            
     def reset_net(self):
         """
         Reset the marking of all places in the net to initial marking.
@@ -368,8 +442,9 @@ class ColoredPetriNet():
     def get_action_space(self):
         self.action_list = []
         for transition in self.transitions.values():
-            if transition.consumption > 0.0:
-                self.action_list.append(transition)
+            # if transition.consumption > 0.0:
+            #     self.action_list.append(transition)
+            self.action_list.append(transition)
         return len(self.transitions)+1
     
     def get_place_colored_state(self):
@@ -399,7 +474,7 @@ class ColoredPetriNet():
         for i, place in enumerate(self.places.values()):
             place_state[i, 0] = place.tokens
             place_state[i, 1] = place.target_tokens
-            if place.branch == 'resource':
+            if place.place_type == 'resource':
                 place_state[i, 2] = 1.0
         return place_state
     
@@ -418,7 +493,7 @@ class ColoredPetriNet():
                 trans_state[i, 0] = 0.0
             if transition.work_status == 'firing':
                 trans_state[i, 1] = 1.0
-                trans_state[i, 2] = (transition.consumption - transition.time) / transition.consumption
+                trans_state[i, 2] = (transition.this_consumption - transition.time) / transition.this_consumption
         trans_state[-1] = [1.0, 0.0, 0.0]       # add idle transition
         return trans_state
     
@@ -435,10 +510,13 @@ class ColoredPetriNet():
     def step(self, action, debug=False):
         reward_dict = {}
         p_state = self.get_state()[0]
+        t_state = self.get_state()[1]
         p_dist = np.sum(np.abs(p_state[:, 1] - p_state[:, 0]) * p_state[:, 2])
+        fire_ts = np.sum(t_state[:, 1])
+        reward_dict['fire_time_penalty'] = fire_ts * self.reward_dict['fire_time_penalty']
         
         if isinstance(action, int):
-            if action == len(self.transitions):
+            if action == len(self.transitions) or action == -1:
                 trans = None
             else:
                 trans = self.action_list[action]
@@ -455,7 +533,6 @@ class ColoredPetriNet():
                 else:
                     if self.on_fire_transition(trans):
                         reward_dict['fire'] = self.reward_dict['fire']
-                        reward_dict['trans_bonus'] = trans.bonus
                     else:
                         reward_dict['on_fire_fire'] = self.reward_dict['on_fire_fire']
                 self.last_fire = trans
