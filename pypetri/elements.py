@@ -128,7 +128,7 @@ class Transition():
         self.out_arcs = dict()
         self.status = 'unready'
         self.work_status = 'unfiring'
-        self.init_time = 3.0
+        self.init_time = 4.0
         self.target_gesture = target_gesture
         self.consumption = time
         self.this_consumption = self.consumption
@@ -165,7 +165,7 @@ class Transition():
         self.time = self.consumption
         
         if current_gesture is not None:
-            if current_gesture != self.target_gesture:
+            if current_gesture != self.target_gesture and self.target_gesture != '----':
                 self.time += self.init_time
         self.this_consumption = self.time
         

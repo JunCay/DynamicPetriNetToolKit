@@ -19,7 +19,7 @@ class ColoredPetriNet():
         self.train_time = 0.0
         self.current_gesture = '0000'
         self.marking_types = list()
-        self.reward_dict = {'progress': 10, 'fire': 2, 'unready_fire': -10, 'on_fire_fire': -20, 'duplicate_fire': -20, 'idle': -self.dt, 'fire_time_penalty': -0.1}
+        self.reward_dict = {'progress': 10, 'fire': 2, 'unready_fire': -10, 'on_fire_fire': -20, 'duplicate_fire': -20, 'idle': -self.dt, 'fire_time_penalty': -self.dt*0.1}
         self.last_fire = None
         
     def __str__(self):
@@ -31,6 +31,7 @@ class ColoredPetriNet():
     def set_dt(self, dt):
         self.dt = dt
         self.reward_dict['idle'] = -self.dt
+        self.reward_dict['fire_time_penalty'] = -self.dt*0.1
         
     def add_node(self, node):
         """
@@ -533,6 +534,7 @@ class ColoredPetriNet():
                 else:
                     if self.on_fire_transition(trans):
                         reward_dict['fire'] = self.reward_dict['fire']
+                        reward_dict['bonus'] = trans.bonus
                     else:
                         reward_dict['on_fire_fire'] = self.reward_dict['on_fire_fire']
                 self.last_fire = trans
